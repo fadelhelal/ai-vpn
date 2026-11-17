@@ -1,7 +1,7 @@
 {
   "name": "aivpn-desktop",
   "productName": "AIVPN",
-  "version": "0.2.19",
+  "version": "0.2.20",
   "description": "AI VPN for Windows - free OpenVPN client",
   "main": "main.js",
   "license": "MIT",
