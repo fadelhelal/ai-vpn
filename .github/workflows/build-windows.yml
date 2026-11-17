@@ -30,52 +30,21 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Install OpenVPN (for bundling binaries)
+      - name: Install OpenVPN (via Chocolatey)
         run: |
-          # Download OpenVPN 2.6.12 MSI from GitHub releases (reliable)
-          $version = "2.6.12"
-          $url = "https://github.com/OpenVPN/openvpn/releases/download/v$version/OpenVPN-$version-I001-amd64.msi"
-          $msi = "$env:TEMP\openvpn.msi"
-          Write-Host "Downloading OpenVPN from GitHub releases..."
-          try {
-            Invoke-WebRequest -Uri $url -OutFile $msi -UseBasicParsing -ErrorAction Stop
-          } catch {
-            # Fallback to SourceForge
-            Write-Host "GitHub download failed, trying SourceForge..."
-            $sfUrl = "https://sourceforge.net/projects/openvpn/files/openvpn/$version/OpenVPN-$version-I001-amd64.msi/download"
-            Invoke-WebRequest -Uri $sfUrl -OutFile $msi -UseBasicParsing -ErrorAction Stop
-          }
-          # Silent install to default location (C:\Program Files\OpenVPN\bin)
-          Write-Host "Installing OpenVPN..."
-          Start-Process msiexec.exe -ArgumentList "/i", "`"$msi`"", "/quiet", "/norestart" -Wait -NoNewWindow
-          # Verify installation
+          choco install openvpn --version=2.6.12 -y --no-progress
           $bin = "C:\Program Files\OpenVPN\bin\openvpn.exe"
           if (Test-Path $bin) {
-            Write-Host "OpenVPN installed successfully at $bin"
+            Write-Host "OpenVPN installed at $bin"
             & $bin --version
           } else {
             Write-Error "OpenVPN installation failed"
             exit 1
           }
 
-      - name: Install Inno Setup
+      - name: Install Inno Setup (via Chocolatey)
         run: |
-          # Download Inno Setup 6 from GitHub releases (reliable)
-          $url = "https://github.com/jrsoftware/issrc/releases/download/is-6.3.1/innosetup-6.3.1.exe"
-          $exe = "$env:TEMP\innosetup.exe"
-          Write-Host "Downloading Inno Setup..."
-          try {
-            Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing -ErrorAction Stop
-          } catch {
-            # Fallback to official site
-            Write-Host "GitHub download failed, trying official site..."
-            $fallbackUrl = "https://jrsoftware.org/download.php/is.exe"
-            Invoke-WebRequest -Uri $fallbackUrl -OutFile $exe -UseBasicParsing -ErrorAction Stop
-          }
-          # Silent install
-          Write-Host "Installing Inno Setup..."
-          Start-Process $exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -NoNewWindow
-          # Add to PATH for this session
+          choco install innosetup --version=6.3.1 -y --no-progress
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (Test-Path $iscc) {
             Write-Host "Inno Setup installed at $iscc"
