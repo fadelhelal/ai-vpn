@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 30
 
     env:
-      NODE_VERSION: '20'
+      NODE_VERSION: '22'
 
     steps:
       - name: Checkout repository
@@ -30,21 +30,27 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Install OpenVPN (direct MSI download)
+      - name: Install OpenVPN (direct MSI download with curl)
         run: |
           $version = "2.6.12"
           $url = "https://github.com/OpenVPN/openvpn/releases/download/v$version/OpenVPN-$version-I001-amd64.msi"
           $msi = "$env:TEMP\openvpn.msi"
-          Write-Host "Downloading OpenVPN $version..."
-          $headers = @{
-            "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            "Accept" = "application/octet-stream"
+          Write-Host "Downloading OpenVPN $version with curl..."
+          $result = curl.exe -L -f -s -S --retry 3 --retry-delay 5 -A "Mozilla/5.0" -o $msi $url
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) {
+            Write-Error "curl download failed with exit code $exitCode"
+            exit 1
           }
-          try {
-            Invoke-WebRequest -Uri $url -OutFile $msi -Headers $headers -UseBasicParsing -ErrorAction Stop
-            Write-Host "Downloaded $([System.Math]::Round((Get-Item $msi).Length/1MB, 1)) MB"
-          } catch {
-            Write-Error "Download failed: $_"
+          if (-not (Test-Path $msi)) {
+            Write-Error "MSI file not found after download"
+            exit 1
+          }
+          $sizeMB = [System.Math]::Round((Get-Item $msi).Length/1MB, 1)
+          Write-Host "Downloaded $sizeMB MB"
+          if ($sizeMB -lt 1) {
+            Write-Error "Downloaded file too small ($sizeMB MB), likely an error page"
+            Get-Content $msi -Raw | Write-Host
             exit 1
           }
           Write-Host "Installing OpenVPN..."
@@ -62,20 +68,26 @@ jobs:
             exit 1
           }
 
-      - name: Install Inno Setup (direct download)
+      - name: Install Inno Setup (direct download with curl)
         run: |
           $url = "https://github.com/jrsoftware/issrc/releases/download/is-6.3.1/innosetup-6.3.1.exe"
           $exe = "$env:TEMP\innosetup.exe"
-          Write-Host "Downloading Inno Setup..."
-          $headers = @{
-            "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            "Accept" = "application/octet-stream"
+          Write-Host "Downloading Inno Setup with curl..."
+          $result = curl.exe -L -f -s -S --retry 3 --retry-delay 5 -A "Mozilla/5.0" -o $exe $url
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) {
+            Write-Error "curl download failed with exit code $exitCode"
+            exit 1
           }
-          try {
-            Invoke-WebRequest -Uri $url -OutFile $exe -Headers $headers -UseBasicParsing -ErrorAction Stop
-            Write-Host "Downloaded $([System.Math]::Round((Get-Item $exe).Length/1MB, 1)) MB"
-          } catch {
-            Write-Error "Download failed: $_"
+          if (-not (Test-Path $exe)) {
+            Write-Error "EXE file not found after download"
+            exit 1
+          }
+          $sizeMB = [System.Math]::Round((Get-Item $exe).Length/1MB, 1)
+          Write-Host "Downloaded $sizeMB MB"
+          if ($sizeMB -lt 1) {
+            Write-Error "Downloaded file too small ($sizeMB MB), likely an error page"
+            Get-Content $exe -Raw | Write-Host
             exit 1
           }
           Write-Host "Installing Inno Setup..."
