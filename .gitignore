@@ -1,7 +1,0 @@
-node_modules/
-dist/
-keys/
-*.key
-*.pem
-*.p12
-*.pfx

@@ -27,38 +27,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: '22.x'
           cache: 'npm'
+          cache-dependency-path: package-lock.json
 
-      - name: Install OpenVPN (direct MSI download with curl)
+      - name: Install OpenVPN via Chocolatey
         run: |
-          $version = "2.6.12"
-          $url = "https://github.com/OpenVPN/openvpn/releases/download/v$version/OpenVPN-$version-I001-amd64.msi"
-          $msi = "$env:TEMP\openvpn.msi"
-          Write-Host "Downloading OpenVPN $version with curl..."
-          $result = curl.exe -L -f -s -S --retry 3 --retry-delay 5 -A "Mozilla/5.0" -o $msi $url
-          $exitCode = $LASTEXITCODE
-          if ($exitCode -ne 0) {
-            Write-Error "curl download failed with exit code $exitCode"
-            exit 1
-          }
-          if (-not (Test-Path $msi)) {
-            Write-Error "MSI file not found after download"
-            exit 1
-          }
-          $sizeMB = [System.Math]::Round((Get-Item $msi).Length/1MB, 1)
-          Write-Host "Downloaded $sizeMB MB"
-          if ($sizeMB -lt 1) {
-            Write-Error "Downloaded file too small ($sizeMB MB), likely an error page"
-            Get-Content $msi -Raw | Write-Host
-            exit 1
-          }
-          Write-Host "Installing OpenVPN..."
-          $install = Start-Process msiexec.exe -ArgumentList "/i", "`"$msi`"", "/quiet", "/norestart" -Wait -NoNewWindow -PassThru
-          if ($install.ExitCode -ne 0) {
-            Write-Error "MSI install failed with exit code $($install.ExitCode)"
-            exit 1
-          }
+          Write-Host "Installing OpenVPN via Chocolatey..."
+          choco install openvpn -y --version 2.6.12
           $bin = "C:\Program Files\OpenVPN\bin\openvpn.exe"
           if (Test-Path $bin) {
             Write-Host "OpenVPN installed at $bin"
