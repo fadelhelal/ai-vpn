@@ -1,0 +1,32 @@
+Kill switch recovery — no elevated script on disk — 2026-11-13, Windows 10.0.26300
+=================================================================================
+
+What ran: the production KillSwitch.enable path in a temporary folder, with the
+elevation spawn replaced by a stub so no UAC prompt was raised. This tests what
+the process writes to the user-writable run folder, not the firewall itself.
+
+Observed
+--------
+run dir: C:\Users\DELL\AppData\Local\Temp\aivpn-ks-evidence-f34YlV
+files after enable: killswitch-watchdog.ps1, killswitch.heartbeat,
+                    killswitch.lock.json, killswitch.stop
+lock exists: true
+elevated spawn uses -EncodedCommand: true
+elevated spawn uses -File: false
+writes .cmd: false
+
+Why it matters
+--------------
+The elevated helper receives the script text inline (-EncodedCommand), so a file
+swapped in the run folder cannot change what runs with administrator rights.
+Previously enable also wrote killswitch-restore.ps1 and restore-network.cmd into
+that folder; both are gone now. Recovery is rebuilt in memory by recover(), used
+by the startup auto-restore and the "Restore network" button, and still needs an
+approved UAC prompt.
+
+Limits
+------
+- Elevation, the UAC prompt, and an actual firewall restore were not exercised
+  here; this is a file-write and command-shape check on the host.
+- The unit suite covers the same rule (69/69), including absence of '-File' and
+  of .cmd/.ps1 recovery writes.

@@ -1,0 +1,157 @@
+Security review remediation — 2026-11-14, Windows 10.0.26300
+=============================================================
+
+Scope: remediation of the four findings in the external code review, plus
+build and release verification. No live elevated connection was run in this
+pass; the limits section lists exactly what remains unproven on device.
+
+Finding 1 (critical) — release signing key inside the project
+-------------------------------------------------------------
+- The old key pair under keys/ was treated as compromised and removed from the
+  tree. The old public-key fingerprint was 81abdecbd8d0ae21.
+- A new Ed25519 pair was generated outside the project:
+  C:\Users\DELL\.aivpn-release\release-signing.key
+  ACL: only DELL5520-11TH-5\DELL (OI)(CI)(F). The private key was never printed.
+- The embedded public key in src/release-key.js was replaced; the new
+  fingerprint is 1f34a6d1cb439879.
+- scripts/create-release-manifest.js resolves AIVPN_RELEASE_KEY or the default
+  path above and refuses any key that resolves inside the project tree
+  (lines 31-37).
+- scripts/package-portable.js runs assertNoPrivateKeys() on the copied app
+  tree (lines 44 and 50): it rejects keys/, *.key/*.pem/*.p12/*.pfx, and any
+  embedded "PRIVATE KEY" block.
+- .gitignore excludes keys/, *.key, *.pem, *.p12, *.pfx, node_modules, and
+  build outputs.
+
+Finding 2 (high) — signature cache not bound to the executable
+--------------------------------------------------------------
+- Guard.signatureOf() keys the 10-minute cache on resolved path + file size +
+  rounded mtime (src/guard.js:229-251).
+- The two decisions that allow the engine to run elevated ask for a fresh
+  check every time: main.js:366 and main.js:440 use { fresh: true }, so a
+  cached verdict for one openvpn.exe cannot authorize another path.
+- Test: "Signature cache is bound to the executable path and its file
+  identity" counts injected psJson calls across two paths, a fresh request,
+  and a file replacement (1 -> 1 -> 2 -> 3 -> 4).
+
+Finding 3 (high) — kill switch armed without readiness
+------------------------------------------------------
+- The watchdog writes killswitch.ready.json only after reading the rules back
+  (src/killswitch.js:70-95, 127-134): every firewall profile must report
+  DefaultOutboundAction=Block; the transport rule must match program, remote
+  address, protocol, port, Outbound/Allow/Enabled; the interface rule must be
+  Outbound/Allow with InterfaceType RemoteAccess.
+- The ready/failure marker carries the attempt nonce created in enable() and
+  written to the lock file, so a marker from another attempt is ignored.
+- enable() waits for the marker with a 20 s default timeout while keeping the
+  heartbeat fresh (src/killswitch.js:214-272). On failure or timeout it writes
+  the stop marker, clears the heartbeat timer, and throws
+  KILLSWITCH_NOT_READY; session.js then reports FAILED and never sets
+  killSwitchActive. A timeout leaves the lock in place so the next attempt
+  asks for recovery instead of stacking a second block.
+- The watchdog's try covers rule creation too; a partial failure restores the
+  previous profile defaults and removes lock/heartbeat/stop/ready.
+- The watchdog exits 6 after a verification failure, but the elevated launcher
+  has already returned by then, so the app reacts to the failure marker rather
+  than to that exit code.
+- Generated scripts parse cleanly with the PowerShell parser:
+  watchdog.ps1: PARSE OK, recovery.ps1: PARSE OK (2026-11-14).
+- Tests: ready wait, failure marker, stale nonce timeout, verification lines,
+  recovery marker removal.
+
+Finding 4 (medium) — certificate pinning not fail-closed
+--------------------------------------------------------
+- Guard.certVerdict() no longer pins a chain string (src/guard.js:107-120).
+  Without a SHA-256 fingerprint and without a stored pin it reports
+  warn/certNoFingerprint and stores nothing.
+- session.js pinPreflight() (line 58) refuses to open a tunnel when a
+  single-server profile has neither a stored pin nor a fresh preflight result
+  (error certUnavailable). A mismatch still fails with certpin; a stored pin is
+  enforced even when the preflight cannot run.
+- Multi-remote profiles (<connection> blocks or several remote lines) are the
+  documented limitation: one preflight cannot represent every node, so they
+  connect on the CA chain, are reported as unverified, and are never pinned
+  from a chain string. This is the second option the review offered.
+- Tests: pinPreflight cases including multiRemote, and certVerdict refusing a
+  chain-only pin.
+
+Follow-up review — four code gaps (2026-11-14)
+---------------------------------------------
+1) Included files bypassed the directive ban
+   - src/session.js:18-20 now also rejects include and config, so a profile
+     cannot pull in a second file whose plugin/script lines never pass the
+     filter.
+   - Test: "sanitizeConfig refuses files that would bypass the directive ban".
+
+2) Preflight left a config with an inline client key on disk
+   - src/certprobe.js:101-177 removes runDir/probe in a finally on every exit
+     path (success, timeout, abort, engine exit), retrying briefly after the
+     engine is stopped; a failed removal is reported as cleanup=failed.
+   - src/session.js:1037-1050 also removes the probe directory with the rest
+     of the per-attempt files.
+   - Tests: "preflight deletes the probe directory after a failed attempt";
+     the engine-path test also asserts the probe directory and staged config
+     are gone after a refused launch.
+
+3) The verified engine path was re-resolved inside the session
+   - main.js:365-392 builds one fresh signature verdict for the resolved path
+     and passes both enginePath and a verifyEngine callback into
+     session.connect; the session no longer calls findEngine when a path is
+     supplied (src/session.js:211-217).
+   - Immediately before the elevated launch, after the kill switch is armed,
+     session.connect re-runs the same fresh check and on failure disarms the
+     kill switch, removes per-attempt files, and reports ENGINE_UNTRUSTED
+     (src/session.js:343-365). This shrinks the window in which a swapped
+     binary could inherit the earlier verdict.
+   - Test: "connect uses the verified engine path and re-checks it before
+     launch" asserts findEngine was never called, the callback saw the same
+     path, the state is FAILED/ENGINE_UNTRUSTED, and no run files remain.
+
+4) Wide pre-existing outbound allow rules were invisible
+   - src/guard.js:78-116 parses the single registry store
+     (HKLM\...\FirewallPolicy\FirewallRules) in about 0.1 s; WMI per-rule
+     filters took about 40 s and produced UWP false positives.
+   - A rule counts as wide only when it is Out/Allow/Active and has no
+     program, package (PFN), local-user, service, interface, port, or address
+     scoping. The app's own "AI VPN Kill Switch " rules are excluded.
+   - In strict mode Guard.inspect reports wide rules as critical fwOpen and
+     lists up to six names; it never deletes or edits system rules
+     (src/guard.js:536-550). main.js passes the strict setting into inspect.
+   - Tests: "Guard flags wide outbound allow rules in strict mode" and
+     "broadOutboundAllows ignores scoped rules and keeps unscoped ones".
+   - Live read-only check on this machine: 648 registry values parsed,
+     0 unscoped outbound allow rules found, no changes made.
+
+Build and release verification (2026-11-14, after the final edit)
+-----------------------------------------------------------------
+- npm test: 90 passed, 0 failed.
+- npm run package:installer: portable zip + Setup.exe produced for 0.2.14.
+- npm run release:manifest signed with the external key; embedded public-key
+  fingerprint 1f34a6d1cb439879.
+- Independent checks (PowerShell Get-FileHash + System.IO.Compression):
+  AI-VPN-Windows-0.2.14-Setup.exe sha256-match=True
+  AI-VPN-Windows-0.2.14-portable.zip sha256-match=True
+  zip suspicious entries: 0
+- Node verification: release.json signature verifies with the embedded key; a
+  copy with a changed version is rejected. Both asset sizes and SHA-256 values
+  match the manifest.
+- Packaged app tree contains no keys/ directory and no private-key markers;
+  it contains the new readiness, path-bound cache, and fail-closed markers.
+
+Limits (not claimed as proven)
+------------------------------
+- No live elevated connect was run after these changes. The readiness marker,
+  the firewall read-back, and the fail-closed certificate refusal are verified
+  statically and by unit tests, not yet against the live Windows firewall. A
+  device run needs UAC approval and briefly interrupts outbound traffic.
+- The review environment's loopback EACCES and supervisor-timeout observations
+  were not reproduced here; the unit suite (90/90) and the PowerShell parser
+  check are the evidence in this pass.
+- The wide-rule scan reads the local firewall store. Rules delivered only by
+  Group Policy or created dynamically by a service may not appear there, so the
+  check is a warning layer, not a replacement for reviewing the effective
+  policy on a managed device.
+- The registry scan itself was validated read-only on this machine (648 values,
+  0 unscoped outbound allow rules); no firewall rule was added or removed for
+  that check.
+- No public release or upload was performed.

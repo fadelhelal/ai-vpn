@@ -1,0 +1,119 @@
+﻿{
+    "at":  "2026-11-14T17:15:48.3748422Z",
+    "adapters":  [
+                     {
+                         "Name":  "OpenVPN TAP-Windows6",
+                         "InterfaceDescription":  "TAP-Windows Adapter V9",
+                         "ifIndex":  20,
+                         "Status":  "Disconnected"
+                     },
+                     {
+                         "Name":  "OpenVPN Data Channel Offload",
+                         "InterfaceDescription":  "OpenVPN Data Channel Offload",
+                         "ifIndex":  17,
+                         "Status":  "Up"
+                     }
+                 ],
+    "profiles":  [
+                     {
+                         "InterfaceAlias":  "OpenVPN Data Channel Offload",
+                         "InterfaceIndex":  17,
+                         "NetworkCategory":  0,
+                         "IPv4Connectivity":  1
+                     },
+                     {
+                         "InterfaceAlias":  "Wi-Fi",
+                         "InterfaceIndex":  6,
+                         "NetworkCategory":  0,
+                         "IPv4Connectivity":  4
+                     },
+                     {
+                         "InterfaceAlias":  "Tailscale",
+                         "InterfaceIndex":  53,
+                         "NetworkCategory":  1,
+                         "IPv4Connectivity":  1
+                     }
+                 ],
+    "firewallProfiles":  [
+                             {
+                                 "Name":  "Domain",
+                                 "DefaultOutboundAction":  4
+                             },
+                             {
+                                 "Name":  "Private",
+                                 "DefaultOutboundAction":  4
+                             },
+                             {
+                                 "Name":  "Public",
+                                 "DefaultOutboundAction":  4
+                             }
+                         ],
+    "rules":  [
+                  {
+                      "displayName":  "AI VPN Kill Switch VPN transport",
+                      "action":  "Allow",
+                      "direction":  "Outbound",
+                      "interfaceAlias":  [
+                                             "Any"
+                                         ],
+                      "interfaceType":  [
+                                            0
+                                        ]
+                  },
+                  {
+                      "displayName":  "AI VPN Kill Switch VPN interface",
+                      "action":  "Allow",
+                      "direction":  "Outbound",
+                      "interfaceAlias":  [
+                                             "Any"
+                                         ],
+                      "interfaceType":  [
+                                            4
+                                        ]
+                  },
+                  {
+                      "displayName":  "AI VPN Kill Switch tunnel OpenVPN TAP-Windows6",
+                      "action":  "Allow",
+                      "direction":  "Outbound",
+                      "interfaceAlias":  [
+                                             "OpenVPN TAP-Windows6"
+                                         ],
+                      "interfaceType":  [
+                                            0
+                                        ]
+                  },
+                  {
+                      "displayName":  "AI VPN Kill Switch tunnel OpenVPN Data Channel Offload",
+                      "action":  "Allow",
+                      "direction":  "Outbound",
+                      "interfaceAlias":  [
+                                             "OpenVPN Data Channel Offload"
+                                         ],
+                      "interfaceType":  [
+                                            0
+                                        ]
+                  }
+              ],
+    "ruleCount":  4,
+    "routes":  [
+                   {
+                       "DestinationPrefix":  "128.0.0.0/1",
+                       "NextHop":  "10.8.0.1",
+                       "InterfaceAlias":  "OpenVPN Data Channel Offload",
+                       "InterfaceIndex":  17
+                   },
+                   {
+                       "DestinationPrefix":  "0.0.0.0/1",
+                       "NextHop":  "10.8.0.1",
+                       "InterfaceAlias":  "OpenVPN Data Channel Offload",
+                       "InterfaceIndex":  17
+                   }
+               ],
+    "exitIp":  "16.171.36.113",
+    "sites":  {
+                  "https://www.google.com":  "HTTP 200 bytes=91108",
+                  "https://www.youtube.com":  "HTTP 200 bytes=916191",
+                  "https://x.com":  "HTTP 200 bytes=45229"
+              },
+    "dns":  "185.15.59.224"
+}

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <title>AI VPN</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">AI</div>
+        <div>
+          <div class="brand-name">AI VPN</div>
+          <div class="brand-sub" data-i18n="secureTunnel">نفق آمن</div>
+        </div>
+      </div>
+      <div class="lang" role="group">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="ar">AR</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="tab" data-tab="home">
+        <button type="button" class="selected-card" id="home-select">
+          <div>
+            <div class="eyebrow" data-i18n="selectedServer">الخادم المحدد</div>
+            <div class="selected-name" id="home-selected-name">—</div>
+          </div>
+          <span class="muted" data-i18n="manage">إدارة</span>
+        </button>
+
+        <div class="orb-wrap">
+          <button type="button" class="orb" id="orb" aria-label="connect">
+            <span class="orb-ring"></span>
+            <span class="orb-core">
+              <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true">
+                <path d="M12 3v8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+                <path d="M7.5 6.3a7.5 7.5 0 1 0 9 0" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+              </svg>
+            </span>
+          </button>
+        </div>
+
+        <h1 class="status" id="home-status">غير متصل</h1>
+        <p class="substatus" id="home-substatus">اضغط للاتصال</p>
+
+        <div class="banner" id="engine-banner" hidden></div>
+        <div class="banner guard-alert" id="guard-alert" hidden></div>
+
+        <div class="card server-card">
+          <div>
+            <div class="eyebrow" data-i18n="server">الخادم</div>
+            <div class="server-name" id="home-server-name">—</div>
+            <div class="server-meta" id="home-server-meta">OpenVPN</div>
+          </div>
+          <span class="badge" id="home-badge" data-i18n="badgePrivate">خاص</span>
+        </div>
+
+        <div class="card details">
+          <div class="row"><span data-i18n="protocol">البروتوكول</span><b id="home-protocol">—</b></div>
+          <div class="row"><span data-i18n="server">الخادم</span><b id="home-server">—</b></div>
+          <div class="row"><span data-i18n="exitIp">عنوان الخروج</span><b id="home-ip">—</b></div>
+          <div class="row"><span data-i18n="duration">المدة</span><b id="home-duration">00:00:00</b></div>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-value" id="home-ping">—</div>
+            <div class="metric-label" data-i18n="pingMeasured">بينغ (قياس)</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="home-down">—</div>
+            <div class="metric-label" data-i18n="downloaded">تنزيل (حي)</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="home-up">—</div>
+            <div class="metric-label" data-i18n="uploaded">رفع (حي)</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab" data-tab="stats" hidden>
+        <h2 class="page-title" data-i18n="statistics">الإحصائيات</h2>
+        <p class="page-sub" id="stats-session">—</p>
+
+        <div class="card big-stat">
+          <div class="big-value" id="stats-speed">—</div>
+          <div class="eyebrow" data-i18n="measuredDownload">سرعة التنزيل المقاسة</div>
+          <div class="muted" id="stats-source"></div>
+        </div>
+
+        <div class="card details">
+          <div class="row"><span data-i18n="exitIp">عنوان الخروج</span><b id="stats-ip">—</b></div>
+          <div class="row"><span data-i18n="probe">فحص النفق</span><b id="stats-probe">—</b></div>
+          <div class="row"><span data-i18n="duration">المدة</span><b id="stats-duration">00:00:00</b></div>
+          <div class="row"><span data-i18n="downloaded">تنزيل</span><b id="stats-downloaded">—</b></div>
+          <div class="row"><span data-i18n="uploaded">رفع</span><b id="stats-uploaded">—</b></div>
+          <div class="row"><span data-i18n="ipv6">IPv6</span><b data-i18n="ipv6Blocked">محجوب عبر النفق</b></div>
+        </div>
+
+        <div class="card guard-card" id="guard-card">
+          <div class="guard-head">
+            <span class="guard-dot" id="guard-dot"></span>
+            <b data-i18n="guardTitle">حالة الحماية</b>
+            <span class="muted" id="guard-when"></span>
+            <button type="button" class="btn ghost" id="guard-check" data-i18n="guardCheck">فحص الآن</button>
+          </div>
+          <div class="guard-list" id="guard-list"></div>
+          <p class="footnote" data-i18n="guardNote">الفحوص محلية وقابلة للتحقق فقط؛ لا يمكن إثبات سلامة مشغّل خادم.</p>
+
+          <div class="intel-block">
+            <div class="intel-head">
+              <div class="eyebrow" data-i18n="intelTitle">آخر التحديثات الأمنية</div>
+              <button type="button" class="btn ghost mini" id="intel-refresh" data-i18n="refreshIntel">تحديث</button>
+            </div>
+            <div class="muted" id="intel-when">—</div>
+            <ul class="intel-list" id="intel-list"></ul>
+          </div>
+        </div>
+
+        <p class="footnote" data-i18n="liveNote">العدّادات اللحظية غير متاحة في هذه النسخة؛ تُعرض نتيجة القياس مرة واحدة.</p>
+      </section>
+
+      <section class="tab" data-tab="settings" hidden>
+        <h2 class="page-title" data-i18n="settings">الإعدادات</h2>
+
+        <div class="card settings-block">
+          <div class="eyebrow" data-i18n="privateProfile">الملف الخاص</div>
+          <p class="muted" id="profile-status">—</p>
+          <div class="row-buttons">
+            <button type="button" class="btn" id="import-profile" data-i18n="importProfile">استيراد ملف</button>
+            <button type="button" class="btn ghost" id="remove-profile" data-i18n="remove">إزالة</button>
+          </div>
+          <p class="muted" data-i18n="encryptedNote">يُخزَّن الملف مشفراً بمفتاح Windows، ولا يُحفظ نصاً صريحاً.</p>
+        </div>
+
+        <div class="card settings-block">
+          <div class="eyebrow" data-i18n="engine">محرك OpenVPN</div>
+          <p class="muted" id="engine-status">—</p>
+          <div class="row-buttons">
+            <button type="button" class="btn" id="pick-engine" data-i18n="chooseEngine">اختيار المحرك</button>
+          </div>
+          <label class="check"><input id="engine-strict" type="checkbox"><span data-i18n="engineStrictNote">ارفض الاتصال إذا كان المحرك غير موقّع أو موقّعاً من جهة غير OpenVPN Inc.</span></label>
+        </div>
+
+        <div class="card settings-block">
+          <div class="eyebrow" data-i18n="certTitle">شهادة الخادم</div>
+          <p class="muted" data-i18n="certNote">تُثبَّت سلسلة شهادة الخادم عند أول اتصال ناجح، وأي تغيّر لاحق يُصنَّف خطراً. لا تُعد التثبيت إلا بعد التأكد أن التغيير صادر عن مشغّل خادمك.</p>
+          <div class="row-buttons"><button type="button" class="btn ghost" id="repin-cert" data-i18n="repinCert">إعادة تثبيت الشهادة الحالية</button></div>
+        </div>
+
+        <div class="card settings-block">
+          <div class="eyebrow">Kill Switch</div>
+          <label class="check"><input id="kill-switch" type="checkbox"><span data-i18n="killSwitchNote">حظر الإنترنت خارج النفق أثناء الاتصال، والتحقق منه في فحص الحماية.</span></label>
+          <label class="check"><input id="kill-switch-strict" type="checkbox"><span data-i18n="killSwitchStrictNote">الوضع الصارم: إن انهار التطبيق يبقى الحظر قائماً حتى تستعيد الشبكة يدوياً.</span></label>
+          <p class="muted" id="kill-lock" data-i18n="killSwitchLockedNote" hidden>الشبكة مقفلة من جلسة سابقة. استعد الشبكة الآن.</p>
+          <div class="row-buttons"><button type="button" class="btn ghost" id="restore-network" data-i18n="restoreNetwork" hidden>استعادة الشبكة</button></div>
+        </div>
+
+        <div class="card settings-block">
+          <div class="eyebrow" data-i18n="updates">التحديثات</div>
+          <label class="field"><span data-i18n="releaseFeed">رابط ملف الإصدار HTTPS</span><input id="release-feed" type="url" inputmode="url" autocomplete="off" placeholder="https://…/release.json"></label>
+          <div class="row-buttons"><button type="button" class="btn ghost" id="check-update" data-i18n="checkUpdates">فحص التحديثات</button></div>
+          <p class="muted" id="update-status" data-i18n="updateNotConfigured">لم يُضبط رابط تحديث.</p>
+        </div>
+
+        <div class="card settings-block">
+          <div class="eyebrow" data-i18n="disclosureTitle">شاشة الإفصاح</div>
+          <p class="muted" id="disclosure-status">—</p>
+          <button type="button" class="btn ghost" id="reset-disclosure" data-i18n="showAgain">إظهارها مجدداً</button>
+        </div>
+
+        <div class="card settings-block">
+          <div class="eyebrow" data-i18n="about">حول</div>
+          <p class="muted" id="about-text">—</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button type="button" data-goto="home" class="active"><span>⌂</span><em data-i18n="home">الرئيسية</em></button>
+      <button type="button" data-goto="stats"><span>▤</span><em data-i18n="statistics">الإحصائيات</em></button>
+      <button type="button" data-goto="settings"><span>⚙</span><em data-i18n="settings">الإعدادات</em></button>
+    </nav>
+  </div>
+
+  <div class="modal-backdrop" id="disclosure-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3 data-i18n="disclosureHeading">قبل الاتصال</h3>
+      <p data-i18n="disclosureBody">ينشئ AI VPN نفقاً مشفراً إلى خادمك الخاص. قد يعالج مشغّل الخادم والمواقع بيانات الاتصال وحركة المرور. لا يبيع التطبيق الترافيك ولا يستخدم تتبعاً إعلانياً. يفحص التطبيق عنوان الخروج والسرعة محلياً عبر Cloudflare وapi.ipify.org.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="disclosure-cancel" data-i18n="cancel">إلغاء</button>
+        <button type="button" class="btn" id="disclosure-accept" data-i18n="accept">أفهم وأوافق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

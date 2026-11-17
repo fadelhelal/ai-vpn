@@ -1,0 +1,37 @@
+{
+  "ok": true,
+  "baseline": {
+    "ok": true,
+    "exit": "185.158.23.164",
+    "latencyMs": 220
+  },
+  "attempts": [
+    {
+      "server": {
+        "id": "laud|115.179.206.241",
+        "host": "laud",
+        "ip": "115.179.206.241",
+        "country": "Japan",
+        "countryCode": "JP",
+        "score": 1436362,
+        "pingHintMs": 13,
+        "speedHintBps": 37312660,
+        "sessions": 134,
+        "latencyMs": 310
+      },
+      "status": "CONNECTED",
+      "probeOk": true,
+      "exitIp": "187.15.134.131",
+      "trace": {
+        "ip": "115.179.206.241",
+        "loc": "JP"
+      },
+      "speed": {
+        "mbps": 1.6878746673510097,
+        "source": "cloudflare"
+      },
+      "routed": true
+    }
+  ],
+  "at": "2026-11-13T12:03:31.096Z"
+}

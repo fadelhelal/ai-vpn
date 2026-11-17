@@ -1,0 +1,88 @@
+# Certificate fingerprint pinning — loopback engine evidence
+
+Date: 2026-11-14 (host time) · Engine: OpenVPN 2.6.14 (OpenVPN Inc., amd64)
+Scope: production modules `src/certprobe.js`, `src/certs.js`, `src/session.js`
+(`buildConfig`), run against a disposable local OpenVPN server on 127.0.0.1:11940.
+No UAC was involved: the preflight and the loopback engine both ran at user
+privilege with `dev null`. In the shipped app the tunnel config keeps the
+profile's real `dev` and is launched elevated as before.
+
+## 1. Preflight probe (production `probeFingerprint`)
+
+```
+probe_ok=true reason= fp=92ba24fb6e72a4783e44e9b12c6a7b38f90d8df874d412cef4b014aedcbe516e
+probe_matches=true
+```
+
+The same certificate through OpenSSL:
+
+```
+sha256 Fingerprint=92:BA:24:FB:6E:72:A4:78:3E:44:E9:B1:2C:6A:7B:38:F9:0D:8D:F8:74:D4:12:CE:F4:B0:14:AE:DC:BE:51:6E
+subject=CN=test-server
+```
+
+Generated probe config (profile scripts, routes and management are absent):
+
+```
+client
+proto udp
+remote 127.0.0.1 11940
+ca "…/ca.crt"
+cert "…/client.crt"
+key "…/client.key"
+dev null
+script-security 3
+tls-verify "…/probe/capture.cmd"
+tls-export-cert "…/probe/export"
+remote-cert-tls server
+tls-version-min 1.2
+```
+
+The unit suite feeds a hostile profile to `probeConfig` (`dev tun`, `route`,
+`up`, `plugin`, `management`, `tls-verify`, `tls-export-cert`,
+`peer-fingerprint`, `auth-user-pass`); the test asserts none of them survive.
+The loopback harness itself used a minimal cert-only profile.
+
+## 2. Pinned tunnel config with the matching fingerprint
+
+`VpnSession.buildConfig(profile, { peerFingerprint })` produced:
+
+```
+peer-fingerprint 92:BA:24:FB:6E:72:A4:78:3E:44:E9:B1:2C:6A:7B:38:F9:0D:8D:F8:74:D4:12:CE:F4:B0:14:AE:DC:BE:51:6E
+```
+
+Engine log:
+
+```
+VERIFY OK: depth=1, CN=AIVPN Test CA
+Control Channel: TLSv1.3, cipher TLSv1.3 TLS_AES_256_GCM_SHA384, peer certificate: 2048 bits RSA, signature: RSA-SHA256, peer temporary key: 253 bits X25519
+Initialization Sequence Completed
+```
+
+Result: `engine_with_matching_pin={"initialized":true,"tlsFailed":false}`
+
+## 3. Same config with a different fingerprint
+
+Only the first byte was changed (`00…` instead of `92…`). Engine log:
+
+```
+VERIFY OK: depth=1, CN=AIVPN Test CA
+TLS Error: TLS handshake failed
+```
+
+Result: `engine_with_wrong_pin={"initialized":false,"tlsFailed":true}`
+
+The engine refuses the tunnel before any data channel exists. In the app the
+same mismatch is caught earlier: `session.connect` compares the probe result
+with the stored pin and returns `error: certpin` without launching the elevated
+engine.
+
+## Limits of this evidence
+
+- The loopback run used `dev null` and a disposable self-signed PKI, not the
+  user's private profile or a real remote server.
+- `block-outside-dns` was removed for the non-elevated loopback run only; the
+  shipped app keeps it and launches elevated.
+- Profiles with several `remote` lines or `<connection>` blocks are not pinned
+  by fingerprint; they keep the chain pin. This was not exercised live.
+- No live UAC tunnel test was performed in this session.

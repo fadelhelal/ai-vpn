@@ -1,0 +1,108 @@
+Elevated engine supervisor — 2026-11-14, Windows 10.0.26300
+==========================================================
+
+What ran: the production module src/elevate.js (stageAndRunScript) executed by
+PowerShell exactly as the elevated helper runs it, plus the production
+session.stop path in src/session.js. Elevation itself was not requested (no UAC
+consent in an automated test). ProgramData was redirected to a temporary folder
+so the run could not touch the real policy folder, and the engine was a stub
+.cmd that records its arguments and loops until it is stopped.
+
+Test-only addition: the staging ACL normally grants only Administrators and
+SYSTEM. This non-elevated run added one extra grant for the current account
+(shown below); production passes no extra grant.
+
+Route cleanup was disabled in this run (cleanupRoutes = false) so the test
+could not touch this machine's routing table. The cleanup design is instead
+asserted by the unit test: a pre-launch snapshot, a diff, and a filter to
+adapters whose InterfaceDescription matches OpenVPN|Wintun|TAP-Windows; no
+firewall, adapter, or default-route commands. Actual route deletion has not
+been exercised on this host.
+
+Observed
+--------
+host: Windows 10.0.26300  user: DELL5520-11TH-5\DELL
+sha256(config text): 9D44D8401B3BBF4479A6309D439FCBEBDEFC35E9EEF3EC0F88DCE380C9A57E6E
+
+[1] stop request
+ready: nonce match, enginePid=17788, supervisorPid=14180
+stage: ...\aivpn-evidence-sup-seovom\AIVPN\stage-dbec31c94b3d4beea61a7c0f20c79e3f
+engine args: --config ...\AIVPN\stage-dbec31c94b3d4beea61a7c0f20c79e3f\run.ovpn
+stage ACL: <current user>:(OI)(CI)(F) | NT AUTHORITY\SYSTEM:(OI)(CI)(F) |
+           BUILTIN\Administrators:(OI)(CI)(F)
+engine alive before stop: true
+supervisor exit: 0
+status: state=stopped reason=stop routesRemoved=0
+engine alive after stop: false
+markers removed: ready=true heartbeat=true stop=true supervisor=true pid=true
+stage removed: true
+
+[2] heartbeat loss (no UI)
+ready before loss: enginePid=19304
+supervisor exit: 0
+status: state=stopped reason=heartbeat-lost
+engine alive after timeout: false
+
+[3] config swapped before staging
+exit: 3
+status: state=failed reason=tampered
+engine started: false
+
+[4] session stop path
+session status after disconnect: DISCONNECTED error=null
+stop marker written: stop
+taskkill calls: 0
+engine alive after disconnect: false
+
+Notes
+-----
+- The supervisor keeps running after the launcher returns (the elevation
+  wrapper no longer uses -Wait), so it can stop the engine for the whole
+  session without a second UAC prompt.
+- A stop marker, a dead engine, or a heartbeat older than 30 seconds all lead
+  to the same teardown: stop the engine, remove the routes added during the
+  run, write engine.status.json, delete engine.ready/engine.heartbeat/
+  engine.stop/engine.supervisor.json/engine.pid, and remove the admin stage.
+- The session-side stop writes engine.stop and waits for the supervisor. The
+  test records zero calls to the old user-token taskkill path.
+- A config swapped between the write and the elevated copy changes the
+  SHA-256, so the script exits 3 and never starts the engine.
+- The heartbeat and stop files live in the user-writable run folder by design:
+  a same-user process can already close the UI, so this adds no privilege
+  boundary. The elevated script itself is never read from a file.
+- The packaged 0.2.14 build was smoke-launched in capture mode and rendered the
+  home screen: packaged-0214-home.png. This checks that the built app starts;
+  it does not connect a tunnel.
+
+Addendum — hardened supervisor, same day
+----------------------------------------
+After this transcript was captured, the supervisor script was hardened and the
+host suite re-ran green (77/77, including this real-PowerShell test):
+
+- Teardown records the engine process start time at launch and only force-stops
+  a PID whose start time still matches, so a recycled PID can never be killed.
+- engine.status.json now carries engineStopped, routesRemoved and routeErrors.
+  engineStopped=false (the admin stop could not confirm the engine died) makes
+  the supervisor exit 5 and keep engine.pid / engine.supervisor.json /
+  engine.status.json / the stage, and makes the session report
+  ENGINE_STOP_FAILED instead of retrying a kill that cannot do better.
+- Route deletion refuses to run when the pre-launch snapshot is missing or
+  unparseable (returns -1 instead of guessing), and per-route failures are
+  counted in routeErrors; the stage folder is kept in those cases.
+- The failure branch (stage-error / tampered after the engine had started) now
+  runs the same identity-checked stop and route cleanup.
+- launchStaged clears a stale engine.stop before launching and writes one when
+  SUPERVISOR_START_TIMEOUT fires, so a wedged supervisor exits on its next
+  poll instead of waiting out the heartbeat.
+
+Limits
+------
+- The UAC prompt, the elevated execution context, and a real OpenVPN tunnel
+  were not exercised here. The stub engine loops like a live engine but does
+  not create a tunnel adapter or routes.
+- Actual removal of tunnel routes on stop was not executed on this host; only
+  the generated script properties and the teardown sequence were tested.
+  (A later live run on a real tunnel did exercise the teardown; see
+  live-teardown.txt.)
+- The 30-second crash timeout was exercised once with a 3-second test value,
+  not over a long session; no stability claim is made.
