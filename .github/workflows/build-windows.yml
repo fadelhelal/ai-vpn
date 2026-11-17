@@ -30,27 +30,66 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Install OpenVPN (via Chocolatey)
+      - name: Install OpenVPN (direct MSI download)
         run: |
-          choco install openvpn --version=2.6.12 -y --no-progress
+          $version = "2.6.12"
+          $url = "https://github.com/OpenVPN/openvpn/releases/download/v$version/OpenVPN-$version-I001-amd64.msi"
+          $msi = "$env:TEMP\openvpn.msi"
+          Write-Host "Downloading OpenVPN $version..."
+          $headers = @{
+            "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "Accept" = "application/octet-stream"
+          }
+          try {
+            Invoke-WebRequest -Uri $url -OutFile $msi -Headers $headers -UseBasicParsing -ErrorAction Stop
+            Write-Host "Downloaded $([System.Math]::Round((Get-Item $msi).Length/1MB, 1)) MB"
+          } catch {
+            Write-Error "Download failed: $_"
+            exit 1
+          }
+          Write-Host "Installing OpenVPN..."
+          $install = Start-Process msiexec.exe -ArgumentList "/i", "`"$msi`"", "/quiet", "/norestart" -Wait -NoNewWindow -PassThru
+          if ($install.ExitCode -ne 0) {
+            Write-Error "MSI install failed with exit code $($install.ExitCode)"
+            exit 1
+          }
           $bin = "C:\Program Files\OpenVPN\bin\openvpn.exe"
           if (Test-Path $bin) {
             Write-Host "OpenVPN installed at $bin"
             & $bin --version
           } else {
-            Write-Error "OpenVPN installation failed"
+            Write-Error "OpenVPN not found after install"
             exit 1
           }
 
-      - name: Install Inno Setup (via Chocolatey)
+      - name: Install Inno Setup (direct download)
         run: |
-          choco install innosetup --version=6.3.1 -y --no-progress
+          $url = "https://github.com/jrsoftware/issrc/releases/download/is-6.3.1/innosetup-6.3.1.exe"
+          $exe = "$env:TEMP\innosetup.exe"
+          Write-Host "Downloading Inno Setup..."
+          $headers = @{
+            "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "Accept" = "application/octet-stream"
+          }
+          try {
+            Invoke-WebRequest -Uri $url -OutFile $exe -Headers $headers -UseBasicParsing -ErrorAction Stop
+            Write-Host "Downloaded $([System.Math]::Round((Get-Item $exe).Length/1MB, 1)) MB"
+          } catch {
+            Write-Error "Download failed: $_"
+            exit 1
+          }
+          Write-Host "Installing Inno Setup..."
+          $install = Start-Process $exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -NoNewWindow -PassThru
+          if ($install.ExitCode -ne 0) {
+            Write-Error "Inno Setup install failed with exit code $($install.ExitCode)"
+            exit 1
+          }
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (Test-Path $iscc) {
             Write-Host "Inno Setup installed at $iscc"
             echo "$iscc" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           } else {
-            Write-Error "Inno Setup installation failed"
+            Write-Error "Inno Setup not found after install"
             exit 1
           }
 
